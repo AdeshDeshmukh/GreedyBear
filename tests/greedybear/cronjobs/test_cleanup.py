@@ -138,6 +138,17 @@ class TestCleanUp(CustomTestCase):
         # 14 total calls to info level
         self.assertEqual(cleanup_job.log.info.call_count, 18)
 
+        # Check specific log messages to ensure counts are logged
+        cleanup_job.log.info.assert_any_call("10 objects deleted")
+        cleanup_job.log.info.assert_any_call("20 objects deleted")
+        cleanup_job.log.info.assert_any_call("5 objects deleted")
+        cleanup_job.log.info.assert_any_call("15 objects deleted")
+        cleanup_job.log.info.assert_any_call("8 objects deleted")
+        cleanup_job.log.info.assert_any_call("3 objects deleted")
+        cleanup_job.log.info.assert_any_call("Reset invalid_event_count to 0 for 4 APISources")
+        cleanup_job.log.info.assert_any_call("50 objects deleted")
+        cleanup_job.log.info.assert_any_call("12 objects deleted")
+
     @patch("greedybear.cronjobs.cleanup.invalidate_ioc_cache")
     def test_run_invalidates_ioc_cache(self, mock_invalidate):
         """Deleting IOCs must orphan cached feeds, even when nothing else changed."""
@@ -153,17 +164,6 @@ class TestCleanUp(CustomTestCase):
         cleanup_job.run()
 
         mock_invalidate.assert_called_once()
-
-        # Check specific log messages to ensure counts are logged
-        cleanup_job.log.info.assert_any_call("10 objects deleted")
-        cleanup_job.log.info.assert_any_call("20 objects deleted")
-        cleanup_job.log.info.assert_any_call("5 objects deleted")
-        cleanup_job.log.info.assert_any_call("15 objects deleted")
-        cleanup_job.log.info.assert_any_call("8 objects deleted")
-        cleanup_job.log.info.assert_any_call("3 objects deleted")
-        cleanup_job.log.info.assert_any_call("Reset invalid_event_count to 0 for 4 APISources")
-        cleanup_job.log.info.assert_any_call("50 objects deleted")
-        cleanup_job.log.info.assert_any_call("12 objects deleted")
 
     def test_run_handles_zero_deletions(self):
         """Test that run method handles cases where no objects are deleted."""
