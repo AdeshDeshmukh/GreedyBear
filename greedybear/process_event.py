@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from greedybear.cache import invalidate_ioc_cache
 from greedybear.cronjobs.extraction.ioc_processor import IocProcessor
 from greedybear.cronjobs.extraction.utils import iocs_from_hits
 from greedybear.cronjobs.repositories import IocRepository, SensorRepository
@@ -375,6 +376,7 @@ def process_incoming_event(source_id: int, task_id: str) -> None:
 
             batch.status = EventStatusType.COMPLETED
             batch.ioc_count = len(processed_iocs)
+            invalidate_ioc_cache()
 
     except Exception as exc:
         logger.exception(f"[task={task_id}] Failed")

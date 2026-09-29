@@ -138,6 +138,22 @@ class TestCleanUp(CustomTestCase):
         # 14 total calls to info level
         self.assertEqual(cleanup_job.log.info.call_count, 18)
 
+    @patch("greedybear.cronjobs.cleanup.invalidate_ioc_cache")
+    def test_run_invalidates_ioc_cache(self, mock_invalidate):
+        """Deleting IOCs must orphan cached feeds, even when nothing else changed."""
+        cleanup_job = CleanUp(
+            ioc_repo=MagicMock(),
+            cowrie_repo=MagicMock(),
+            stats_repo=MagicMock(),
+            api_source_repo=MagicMock(),
+            event_repo=MagicMock(),
+        )
+        cleanup_job.log = MagicMock()
+
+        cleanup_job.run()
+
+        mock_invalidate.assert_called_once()
+
         # Check specific log messages to ensure counts are logged
         cleanup_job.log.info.assert_any_call("10 objects deleted")
         cleanup_job.log.info.assert_any_call("20 objects deleted")

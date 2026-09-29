@@ -1,5 +1,6 @@
 from django.db.models import Count
 
+from greedybear.cache import invalidate_ioc_cache
 from greedybear.cronjobs.base import Cronjob
 from greedybear.cronjobs.repositories.tag import TagRepository
 from greedybear.models import IOC, IocType
@@ -59,6 +60,7 @@ class CredentialReuseCron(Cronjob):
         created = self.tag_repo.add_tags(SOURCE_NAME, tag_entries)
 
         self.log.info(f"Credential reuse detection complete: tagged {created} IPs")
+        invalidate_ioc_cache()
 
     def _get_candidates(self) -> list[tuple]:
         queryset = (

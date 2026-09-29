@@ -5,9 +5,12 @@ from unittest.mock import MagicMock, patch
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
+from django.test import override_settings
 from django.utils import timezone
 
 from api.serializers.events import EventSerializer
+from greedybear.cache import Cache
+from greedybear.consts import API_CACHE_ALIAS, IOC_DATA_VERSION_KEY
 from greedybear.cronjobs.repositories import IocRepository
 from greedybear.models import IOC, CommandSequence, Credential, EventStatus, Honeypot, HoneypotPayload, RawEvent, Sensor
 from greedybear.process_event import (
@@ -1000,3 +1003,57 @@ class TestLongProtocolDoesNotFailBatch(CustomTestCase):
         credential_width = Credential._meta.get_field("protocol").max_length
         self.assertEqual(credential_width, RawEvent._meta.get_field("protocol").max_length)
         self.assertEqual(credential_width, EventSerializer().fields["protocol"].max_length)
+
+
+INVALIDATION_CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "greedybear-invalidation-default",
+    },
+    "api": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "greedybear-invalidation-api-cache",
+    },
+}
+
+
+@override_settings(CACHES=INVALIDATION_CACHES)
+class TestBatchCompletionInvalidatesCache(CustomTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = make_user(username="invalidation_user")
+        self.api_source = make_api_source(self.user, name="InvalidationSource")
+        self.sensor = make_sensor(api_source=self.api_source)
+        self.batch = make_batch(self.api_source, task_id="task-invalidation")
+        make_raw_event(self.batch, self.sensor, src_ip="10.9.9.9", event_type="ssh")
+
+    def _version(self) -> int:
+        return Cache(API_CACHE_ALIAS).get_data_version(IOC_DATA_VERSION_KEY)
+
+    @patch(PATCH_UPDATE_SCORES)
+    @patch(PATCH_GET_ATTACK_TYPE, return_value="scanner")
+    @patch(PATCH_IOC_PROCESSOR)
+    @patch(PATCH_IOCS_FROM_HITS)
+    def test_completed_batch_bumps_version(self, mock_hits, mock_processor_cls, mock_attack, mock_scores_cls):
+        saved_ioc = IOC.objects.create(name="10.9.9.9", type="ip")
+        mock_hits.return_value = [make_ioc("10.9.9.9")]
+        processor_instance = MagicMock()
+        processor_instance.add_ioc.return_value = saved_ioc
+        mock_processor_cls.return_value = processor_instance
+        mock_scores_cls.return_value = MagicMock()
+
+        before = self._version()
+        process_incoming_event(self.api_source.id, self.batch.task_id)
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.status, "completed")
+        self.assertEqual(self._version(), before + 1)
+
+    @patch(PATCH_IOCS_FROM_HITS, side_effect=RuntimeError("boom"))
+    def test_failed_batch_does_not_bump_version(self, mock_hits):
+        before = self._version()
+        process_incoming_event(self.api_source.id, self.batch.task_id)
+
+        self.batch.refresh_from_db()
+        self.assertEqual(self.batch.status, "failed")
+        self.assertEqual(self._version(), before)
