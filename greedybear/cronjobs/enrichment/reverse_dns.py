@@ -82,8 +82,6 @@ class ReverseDNSCron(BaseEnrichmentJob):
         if matched_ips:
             updated_count = self.ioc_repo.bulk_update_ioc_reputation(matched_ips, IpReputation.MASS_SCANNER.value)
             self.log.info(f"Marked {updated_count} IPs as mass scanners via rDNS")
-            # No explicit invalidation here: _write_tags() below funnels through
-            # invalidate_ioc_cache() on every path, including empty tag sets.
 
         # Using add_tags instead of replace_tags_for_source because this job only checks
         # new candidate IPs each run and excludes ones already

@@ -242,13 +242,6 @@ class UpdateScores(Cronjob):
 
         Returns:
             int: Number of objects updated
-
-        Note:
-            This method does not invalidate the IOC cache itself. Both
-            in-tree callers do it for their own path (the extraction
-            pipeline bumps after scoring, process_incoming_event bumps on
-            batch completion), so a future direct caller must bump
-            IOC_DATA_VERSION_KEY itself (see invalidate_ioc_cache).
         """
         unique_iocs = set(iocs)
         primary_keys = {ioc.pk for ioc in unique_iocs}
