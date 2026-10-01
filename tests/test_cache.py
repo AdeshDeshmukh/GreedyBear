@@ -118,6 +118,9 @@ class EnrichmentWriteInvalidationTestCase(CustomTestCase):
         class ProbeJob(BaseEnrichmentJob):
             SOURCE_NAME = "probe-source"
 
+            def run(self) -> None:
+                pass
+
         cache = Cache(API_CACHE_ALIAS)
         before = cache.get_data_version(IOC_DATA_VERSION_KEY)
         ProbeJob(tag_repo=TagRepository())._write_tags([{"ioc_id": self.ioc.id, "key": "k", "value": "v"}])
