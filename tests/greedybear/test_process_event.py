@@ -12,7 +12,7 @@ from api.serializers.events import EventSerializer
 from greedybear.cache import Cache
 from greedybear.consts import API_CACHE_ALIAS, IOC_DATA_VERSION_KEY
 from greedybear.cronjobs.repositories import IocRepository, PayloadRepository
-from greedybear.models import IOC, CommandSequence, Credential, EventStatus, Honeypot, HoneypotPayload, RawEvent, Sensor
+from greedybear.models import IOC, CommandSequence, CowrieFileTransfer, CowrieSession, Credential, EventStatus, Honeypot, HoneypotPayload, RawEvent, Sensor
 from greedybear.process_event import (
     DEFAULT_EXTERNAL_HONEYPOT,
     HONEYPOT_NAME_MAX_LENGTH,
@@ -750,6 +750,23 @@ class TestProcessPayloadHashes(CustomTestCase):
         # same hash, uppercase, should find existing row, not create a second
         _process_payload_hashes(self.payload_repo, self.ioc, [self._hit("A" * 64)])
         self.assertEqual(HoneypotPayload.objects.count(), 1)
+
+    def test_stub_links_preexisting_session(self):
+        # transfer recorded FIRST, external hit carrying same hash SECOND
+        cowrie_ioc = IOC.objects.create(name="9.9.9.9", type="ip")
+        session = CowrieSession.objects.create(session_id=0xABCDEF, source=cowrie_ioc)
+        CowrieFileTransfer.objects.create(session=session, shasum=self.sha256, timestamp=timezone.now())
+        _process_payload_hashes(self.payload_repo, self.ioc, [self._hit(self.sha256)])
+        payload = HoneypotPayload.objects.get(sha256=self.sha256)
+        self.assertIn(session, payload.cowrie_sessions.all())
+
+    def test_stub_links_cowrie_attacker_ioc(self):
+        cowrie_ioc = IOC.objects.create(name="9.9.9.9", type="ip")
+        session = CowrieSession.objects.create(session_id=0xABCDEF, source=cowrie_ioc)
+        CowrieFileTransfer.objects.create(session=session, shasum=self.sha256, timestamp=timezone.now())
+        _process_payload_hashes(self.payload_repo, self.ioc, [self._hit(self.sha256)])
+        payload = HoneypotPayload.objects.get(sha256=self.sha256)
+        self.assertIn(cowrie_ioc, payload.iocs.all())
 
 
 class TestSensorHoneypotNames(CustomTestCase):

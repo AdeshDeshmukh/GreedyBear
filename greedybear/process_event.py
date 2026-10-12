@@ -199,6 +199,9 @@ def _process_payload_hashes(payload_repo: PayloadRepository, saved_ioc: IOC, ip_
         payload.iocs.add(saved_ioc)
         if created:
             logger.debug(f"created hash-only payload {sha256_hash[:12]}…")
+            linked = payload_repo.link_sessions_to_payload(payload)
+            if linked:
+                logger.debug(f"linked payload {sha256_hash[:12]}… to {linked} cowrie session(s).")
         logger.debug(f"linked payload {sha256_hash[:12]}… → IOC {saved_ioc.name}")
 
 
