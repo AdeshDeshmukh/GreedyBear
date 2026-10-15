@@ -753,20 +753,31 @@ class TestProcessPayloadHashes(CustomTestCase):
 
     def test_stub_links_preexisting_session(self):
         # transfer recorded FIRST, external hit carrying same hash SECOND
-        cowrie_ioc = IOC.objects.create(name="9.9.9.9", type="ip")
-        session = CowrieSession.objects.create(session_id=0xABCDEF, source=cowrie_ioc)
-        CowrieFileTransfer.objects.create(session=session, shasum=self.sha256, timestamp=timezone.now())
+        _, session = self._make_session_with_transfer(self.sha256)
         _process_payload_hashes(self.payload_repo, self.ioc, [self._hit(self.sha256)])
         payload = HoneypotPayload.objects.get(sha256=self.sha256)
         self.assertIn(session, payload.cowrie_sessions.all())
 
     def test_stub_links_cowrie_attacker_ioc(self):
-        cowrie_ioc = IOC.objects.create(name="9.9.9.9", type="ip")
-        session = CowrieSession.objects.create(session_id=0xABCDEF, source=cowrie_ioc)
-        CowrieFileTransfer.objects.create(session=session, shasum=self.sha256, timestamp=timezone.now())
+        cowrie_ioc, _ = self._make_session_with_transfer(self.sha256)
         _process_payload_hashes(self.payload_repo, self.ioc, [self._hit(self.sha256)])
         payload = HoneypotPayload.objects.get(sha256=self.sha256)
         self.assertIn(cowrie_ioc, payload.iocs.all())
+
+    def test_existing_stub_skips_linking(self):
+        # stub FIRST (no sessions exist yet), transfer recorded SECOND
+        _process_payload_hashes(self.payload_repo, self.ioc, [self._hit(self.sha256)])
+        cowrie_ioc, _ = self._make_session_with_transfer(self.sha256)
+        _process_payload_hashes(self.payload_repo, self.ioc, [self._hit(self.sha256)])
+        payload = HoneypotPayload.objects.get(sha256=self.sha256)
+        self.assertEqual(payload.cowrie_sessions.count(), 0)
+        self.assertNotIn(cowrie_ioc, payload.iocs.all())
+
+    def _make_session_with_transfer(self, sha256):
+        cowrie_ioc = IOC.objects.create(name="9.9.9.9", type="ip")
+        session = CowrieSession.objects.create(session_id=0xABCDEF, source=cowrie_ioc)
+        CowrieFileTransfer.objects.create(session=session, shasum=sha256, timestamp=timezone.now())
+        return cowrie_ioc, session
 
 
 class TestSensorHoneypotNames(CustomTestCase):

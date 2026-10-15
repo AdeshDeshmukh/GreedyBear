@@ -189,7 +189,8 @@ def _process_payload_hashes(payload_repo: PayloadRepository, saved_ioc: IOC, ip_
 
     A hash observed here may later be enriched with an actual file by
     PayloadExtractionJob. We only create a hash-only stub row if one doesn't
-    already exist.
+    already exist. New stubs are linked to already-recorded Cowrie sessions
+    and their attacker IOCs.
     """
     hashes = {hit["_payload_hash"].lower() for hit in ip_hits if hit.get("_payload_hash")}
     if not hashes:
